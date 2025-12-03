@@ -18,7 +18,8 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, limit, orderBy, increment, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
+        // ADD THIS LINE:
+        import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js";
         // ==========================================
         // CONFIGURARE FIREBASE
         // ==========================================
@@ -46,6 +47,9 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
         
+        // ADD THIS LINE:
+        const functions = getFunctions(app);
+
         // --- LOCALIZATION SYSTEM ---
         let currentLang = localStorage.getItem('coinflip_lang') || 'en';
 
@@ -672,8 +676,32 @@
         };
 
         window.performFlip = async () => {
-            const result = Math.random() < 0.5 ? 'heads' : 'tails';
-            await updateDoc(doc(db, COLLECTION_ROOMS, currentRoomId), { lastFlip: { result, timestamp: Date.now() } });
+            const btn = document.querySelector('#my-actions button'); // Get the flip button
+            if(btn) {
+                btn.disabled = true;
+                btn.innerText = "Flipping...";
+            }
+
+            try {
+                // Call the Secure Cloud Function
+                const flipFunction = httpsCallable(functions, 'flipPvP');
+                
+                // We send the currentRoomId so the server knows which game to update
+                await flipFunction({ roomId: currentRoomId });
+                
+                // Note: We don't need to manually updateDoc here. 
+                // The Cloud Function updates the DB.
+                // Your "onSnapshot" listener in subscribeToRoom will detect the change 
+                // and trigger the animation automatically.
+                
+            } catch (error) {
+                console.error("Flip failed:", error);
+                alert("Error flipping coin: " + error.message);
+                if(btn) {
+                    btn.disabled = false;
+                    btn.innerText = "DĂ CU BANUL"; // or "FLIP COIN"
+                }
+            }
         };
 
         function showWinnerControls(roomData) {
